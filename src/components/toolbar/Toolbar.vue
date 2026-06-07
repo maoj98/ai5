@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import {
   Bold,
   Italic,
@@ -58,6 +58,8 @@ const activeFormat = ref<Record<string, boolean>>({
   alignJustify: false,
 })
 
+const currentParagraphType = ref<string | null>(null)
+
 const columnCount = computed(() => document.value.columnCount)
 
 function getActiveParagraphFromDOM(): { columnId: string; paragraphId: string } | null {
@@ -75,8 +77,32 @@ function getActiveParagraphFromDOM(): { columnId: string; paragraphId: string } 
   return null
 }
 
+function getParagraphFromSelection(): { columnId: string; paragraphId: string } | null {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) {
+    return null
+  }
+  const range = selection.getRangeAt(0)
+  const startContainer = range.startContainer
+  const el = startContainer.nodeType === Node.TEXT_NODE
+    ? startContainer.parentElement
+    : startContainer as HTMLElement
+  
+  const paragraphEl = el?.closest('[data-paragraph-id]')
+  const columnEl = el?.closest('[data-column-id]')
+  
+  if (paragraphEl && columnEl) {
+    const paragraphId = paragraphEl.getAttribute('data-paragraph-id')
+    const columnId = columnEl.getAttribute('data-column-id')
+    if (paragraphId && columnId) {
+      return { columnId, paragraphId }
+    }
+  }
+  return null
+}
+
 function getActiveParagraphType(): string | null {
-  const active = getActiveParagraphFromDOM()
+  const active = getParagraphFromSelection() || getActiveParagraphFromDOM()
   if (active) {
     const paragraph = editorStore.getParagraphById(active.columnId, active.paragraphId)
     return paragraph?.type || null
@@ -89,7 +115,7 @@ function getActiveParagraphType(): string | null {
 }
 
 const isCodeMode = computed(() => {
-  return getActiveParagraphType() === 'code'
+  return currentParagraphType.value === 'code'
 })
 
 function handleUndo() {
@@ -222,6 +248,79 @@ function handleAlign(align: 'left' | 'center' | 'right' | 'justify') {
 watch(isCodeMode, (newVal) => {
   if (newVal) {
     resetFormatStates()
+  }
+})
+
+function updateActiveFormatFromSelection() {
+  if (currentParagraphType.value === 'code') {
+    resetFormatStates()
+    return
+  }
+
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) {
+    return
+  }
+
+  const range = selection.getRangeAt(0)
+  const startContainer = range.startContainer
+  const el = startContainer.nodeType === Node.TEXT_NODE
+    ? startContainer.parentElement
+    : startContainer as HTMLElement
+
+  if (!el) {
+    return
+  }
+
+  let currentEl: HTMLElement | null = el
+  let bold = false
+  let italic = false
+  let underline = false
+  let strikethrough = false
+
+  while (currentEl && currentEl.getAttribute('contenteditable') !== 'true') {
+    const tagName = currentEl.tagName.toLowerCase()
+    if (tagName === 'b' || tagName === 'strong') bold = true
+    if (tagName === 'i' || tagName === 'em') italic = true
+    if (tagName === 'u') underline = true
+    if (tagName === 's' || tagName === 'strike' || tagName === 'del') strikethrough = true
+    currentEl = currentEl.parentElement
+  }
+
+  if (!range.collapsed) {
+    activeFormat.value.bold = bold || window.document.queryCommandState('bold')
+    activeFormat.value.italic = italic || window.document.queryCommandState('italic')
+    activeFormat.value.underline = underline || window.document.queryCommandState('underline')
+    activeFormat.value.strikethrough = strikethrough || window.document.queryCommandState('strikeThrough')
+  } else {
+    activeFormat.value.bold = bold
+    activeFormat.value.italic = italic
+    activeFormat.value.underline = underline
+    activeFormat.value.strikethrough = strikethrough
+  }
+}
+
+let updateFormatTimer: number | null = null
+
+function handleSelectionChange() {
+  if (updateFormatTimer) {
+    clearTimeout(updateFormatTimer)
+  }
+  updateFormatTimer = window.setTimeout(() => {
+    currentParagraphType.value = getActiveParagraphType()
+    updateActiveFormatFromSelection()
+  }, 10)
+}
+
+onMounted(() => {
+  window.document.addEventListener('selectionchange', handleSelectionChange)
+  handleSelectionChange()
+})
+
+onUnmounted(() => {
+  window.document.removeEventListener('selectionchange', handleSelectionChange)
+  if (updateFormatTimer) {
+    clearTimeout(updateFormatTimer)
   }
 })
 
