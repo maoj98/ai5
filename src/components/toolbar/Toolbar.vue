@@ -88,8 +88,26 @@ function handleStrikethrough() {
   window.document.execCommand('strikeThrough')
 }
 
+function getActiveParagraphFromDOM(): { columnId: string; paragraphId: string } | null {
+  const activeEl = window.document.activeElement as HTMLElement
+  const paragraphEl = activeEl?.closest('[data-paragraph-id]')
+  const columnEl = activeEl?.closest('[data-column-id]')
+  
+  if (paragraphEl && columnEl) {
+    const paragraphId = paragraphEl.getAttribute('data-paragraph-id')
+    const columnId = columnEl.getAttribute('data-column-id')
+    if (paragraphId && columnId) {
+      return { columnId, paragraphId }
+    }
+  }
+  return null
+}
+
 function handleHeading(level: 1 | 2 | 3) {
-  if (activeColumnId.value && activeParagraphId.value) {
+  const active = getActiveParagraphFromDOM()
+  if (active) {
+    handleParagraphType(active.columnId, active.paragraphId, 'heading', level)
+  } else if (activeColumnId.value && activeParagraphId.value) {
     handleParagraphType(activeColumnId.value, activeParagraphId.value, 'heading', level)
   } else {
     window.document.execCommand('formatBlock', false, `<h${level}>`)
@@ -100,7 +118,12 @@ function handleParagraph() {
   if (activeColumnId.value && activeParagraphId.value) {
     handleParagraphType(activeColumnId.value, activeParagraphId.value, 'text')
   } else {
-    window.document.execCommand('formatBlock', false, '<p>')
+    const active = getActiveParagraphFromDOM()
+    if (active) {
+      handleParagraphType(active.columnId, active.paragraphId, 'text')
+    } else {
+      window.document.execCommand('formatBlock', false, '<p>')
+    }
   }
 }
 
@@ -116,7 +139,12 @@ function handleQuote() {
   if (activeColumnId.value && activeParagraphId.value) {
     handleParagraphType(activeColumnId.value, activeParagraphId.value, 'quote')
   } else {
-    window.document.execCommand('formatBlock', false, '<blockquote>')
+    const active = getActiveParagraphFromDOM()
+    if (active) {
+      handleParagraphType(active.columnId, active.paragraphId, 'quote')
+    } else {
+      window.document.execCommand('formatBlock', false, '<blockquote>')
+    }
   }
 }
 
@@ -124,7 +152,12 @@ function handleCode() {
   if (activeColumnId.value && activeParagraphId.value) {
     handleParagraphType(activeColumnId.value, activeParagraphId.value, 'code')
   } else {
-    window.document.execCommand('formatBlock', false, '<pre>')
+    const active = getActiveParagraphFromDOM()
+    if (active) {
+      handleParagraphType(active.columnId, active.paragraphId, 'code')
+    } else {
+      window.document.execCommand('formatBlock', false, '<pre>')
+    }
   }
 }
 

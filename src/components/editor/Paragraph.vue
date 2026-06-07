@@ -103,6 +103,13 @@ function handleBlur() {
   isFocused.value = false
 }
 
+function handleParagraphClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.paragraph__content')) {
+    contentRef.value?.focus()
+  }
+}
+
 function handleDragStart(e: DragEvent) {
   if (!e.dataTransfer) return
   
@@ -203,6 +210,7 @@ defineExpose({
     @mouseleave="isHovered = false"
     @dragover="handleDragOver"
     @drop="handleDrop"
+    @click="handleParagraphClick"
   >
     <DragHandle
       :draggable="isHovered || isActive"

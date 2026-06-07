@@ -16,6 +16,10 @@ const classes = computed(() => ({
   'toolbar-btn--active': props.active,
   'toolbar-btn--disabled': props.disabled,
 }))
+
+function handleMouseDown(e: MouseEvent) {
+  e.preventDefault()
+}
 </script>
 
 <template>
@@ -23,6 +27,7 @@ const classes = computed(() => ({
     :class="classes"
     :title="title"
     :disabled="disabled"
+    @mousedown="handleMouseDown"
     @click="emit('click', $event)"
   >
     <slot />

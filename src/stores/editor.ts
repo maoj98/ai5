@@ -6,6 +6,24 @@ import { defaultFormatConfig } from '@/types/format'
 import { generateId } from '@/utils/dom'
 import { createEmptyParagraph } from '@/utils/richText'
 
+const headingStylePresets: Record<number, Partial<FormatConfig>> = {
+  1: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    lineHeight: 1.3,
+  },
+  2: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    lineHeight: 1.4,
+  },
+  3: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    lineHeight: 1.4,
+  },
+}
+
 function createInitialDocument(): Document {
   const column1Id = generateId()
   const column2Id = generateId()
@@ -190,9 +208,15 @@ export const useEditorStore = defineStore('editor', () => {
     if (paragraph) {
       paragraph.type = type
       if (type === 'heading') {
-        paragraph.level = level || 1
+        const headingLevel = level || 1
+        paragraph.level = headingLevel
+        const stylePreset = headingStylePresets[headingLevel]
+        if (stylePreset) {
+          paragraph.format = { ...paragraph.format, ...stylePreset }
+        }
       } else {
         delete paragraph.level
+        paragraph.format = { ...defaultFormatConfig }
       }
       document.value.updatedAt = Date.now()
     }
