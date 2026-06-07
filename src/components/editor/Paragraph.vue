@@ -157,6 +157,10 @@ function handleKeyDown(e: KeyboardEvent) {
     e.preventDefault()
   }
   
+  if (props.paragraph.type === 'code') {
+    return
+  }
+  
   if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
     e.preventDefault()
     window.document.execCommand('bold')

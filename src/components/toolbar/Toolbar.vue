@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   Bold,
   Italic,
@@ -60,34 +60,6 @@ const activeFormat = ref<Record<string, boolean>>({
 
 const columnCount = computed(() => document.value.columnCount)
 
-function handleUndo() {
-  undo()
-}
-
-function handleRedo() {
-  redo()
-}
-
-function handleBold() {
-  activeFormat.value.bold = !activeFormat.value.bold
-  window.document.execCommand('bold')
-}
-
-function handleItalic() {
-  activeFormat.value.italic = !activeFormat.value.italic
-  window.document.execCommand('italic')
-}
-
-function handleUnderline() {
-  activeFormat.value.underline = !activeFormat.value.underline
-  window.document.execCommand('underline')
-}
-
-function handleStrikethrough() {
-  activeFormat.value.strikethrough = !activeFormat.value.strikethrough
-  window.document.execCommand('strikeThrough')
-}
-
 function getActiveParagraphFromDOM(): { columnId: string; paragraphId: string } | null {
   const activeEl = window.document.activeElement as HTMLElement
   const paragraphEl = activeEl?.closest('[data-paragraph-id]')
@@ -101,6 +73,59 @@ function getActiveParagraphFromDOM(): { columnId: string; paragraphId: string } 
     }
   }
   return null
+}
+
+function getActiveParagraphType(): string | null {
+  const active = getActiveParagraphFromDOM()
+  if (active) {
+    const paragraph = editorStore.getParagraphById(active.columnId, active.paragraphId)
+    return paragraph?.type || null
+  }
+  if (activeColumnId.value && activeParagraphId.value) {
+    const paragraph = editorStore.getParagraphById(activeColumnId.value, activeParagraphId.value)
+    return paragraph?.type || null
+  }
+  return null
+}
+
+const isCodeMode = computed(() => {
+  return getActiveParagraphType() === 'code'
+})
+
+function handleUndo() {
+  undo()
+}
+
+function handleRedo() {
+  redo()
+}
+
+function handleBold() {
+  const type = getActiveParagraphType()
+  if (!type || type === 'code') return
+  activeFormat.value.bold = !activeFormat.value.bold
+  window.document.execCommand('bold')
+}
+
+function handleItalic() {
+  const type = getActiveParagraphType()
+  if (!type || type === 'code') return
+  activeFormat.value.italic = !activeFormat.value.italic
+  window.document.execCommand('italic')
+}
+
+function handleUnderline() {
+  const type = getActiveParagraphType()
+  if (!type || type === 'code') return
+  activeFormat.value.underline = !activeFormat.value.underline
+  window.document.execCommand('underline')
+}
+
+function handleStrikethrough() {
+  const type = getActiveParagraphType()
+  if (!type || type === 'code') return
+  activeFormat.value.strikethrough = !activeFormat.value.strikethrough
+  window.document.execCommand('strikeThrough')
 }
 
 function handleHeading(level: 1 | 2 | 3) {
@@ -148,20 +173,38 @@ function handleQuote() {
   }
 }
 
+function resetFormatStates() {
+  activeFormat.value.bold = false
+  activeFormat.value.italic = false
+  activeFormat.value.underline = false
+  activeFormat.value.strikethrough = false
+}
+
+function clearAllFormatting() {
+  window.document.execCommand('removeFormat')
+  window.document.execCommand('bold', false, 'false')
+  window.document.execCommand('italic', false, 'false')
+  window.document.execCommand('underline', false, 'false')
+  window.document.execCommand('strikeThrough', false, 'false')
+  resetFormatStates()
+}
+
 function handleCode() {
-  if (activeColumnId.value && activeParagraphId.value) {
+  clearAllFormatting()
+  
+  const active = getActiveParagraphFromDOM()
+  if (active) {
+    handleParagraphType(active.columnId, active.paragraphId, 'code')
+  } else if (activeColumnId.value && activeParagraphId.value) {
     handleParagraphType(activeColumnId.value, activeParagraphId.value, 'code')
   } else {
-    const active = getActiveParagraphFromDOM()
-    if (active) {
-      handleParagraphType(active.columnId, active.paragraphId, 'code')
-    } else {
-      window.document.execCommand('formatBlock', false, '<pre>')
-    }
+    window.document.execCommand('formatBlock', false, '<pre>')
   }
 }
 
 function handleAlign(align: 'left' | 'center' | 'right' | 'justify') {
+  const type = getActiveParagraphType()
+  if (!type || type === 'code') return
   activeFormat.value.alignLeft = align === 'left'
   activeFormat.value.alignCenter = align === 'center'
   activeFormat.value.alignRight = align === 'right'
@@ -175,6 +218,12 @@ function handleAlign(align: 'left' | 'center' | 'right' | 'justify') {
   }
   window.document.execCommand(commands[align])
 }
+
+watch(isCodeMode, (newVal) => {
+  if (newVal) {
+    resetFormatStates()
+  }
+})
 
 function handleColumns(count: 1 | 2 | 3) {
   handleSetColumnCount(count)
@@ -281,16 +330,16 @@ function closeMenus() {
     </ToolbarGroup>
 
     <ToolbarGroup label="格式">
-      <ToolbarButton title="加粗 (Ctrl+B)" :active="activeFormat.bold" @click="handleBold">
+      <ToolbarButton title="加粗 (Ctrl+B)" :active="activeFormat.bold" :disabled="isCodeMode" @click="handleBold">
         <Bold :size="20" />
       </ToolbarButton>
-      <ToolbarButton title="斜体 (Ctrl+I)" :active="activeFormat.italic" @click="handleItalic">
+      <ToolbarButton title="斜体 (Ctrl+I)" :active="activeFormat.italic" :disabled="isCodeMode" @click="handleItalic">
         <Italic :size="20" />
       </ToolbarButton>
-      <ToolbarButton title="下划线 (Ctrl+U)" :active="activeFormat.underline" @click="handleUnderline">
+      <ToolbarButton title="下划线 (Ctrl+U)" :active="activeFormat.underline" :disabled="isCodeMode" @click="handleUnderline">
         <Underline :size="20" />
       </ToolbarButton>
-      <ToolbarButton title="删除线" :active="activeFormat.strikethrough" @click="handleStrikethrough">
+      <ToolbarButton title="删除线" :active="activeFormat.strikethrough" :disabled="isCodeMode" @click="handleStrikethrough">
         <Strikethrough :size="20" />
       </ToolbarButton>
     </ToolbarGroup>
@@ -311,16 +360,16 @@ function closeMenus() {
     </ToolbarGroup>
 
     <ToolbarGroup label="对齐">
-      <ToolbarButton title="左对齐" :active="activeFormat.alignLeft" @click="handleAlign('left')">
+      <ToolbarButton title="左对齐" :active="activeFormat.alignLeft" :disabled="isCodeMode" @click="handleAlign('left')">
         <AlignLeft :size="20" />
       </ToolbarButton>
-      <ToolbarButton title="居中对齐" :active="activeFormat.alignCenter" @click="handleAlign('center')">
+      <ToolbarButton title="居中对齐" :active="activeFormat.alignCenter" :disabled="isCodeMode" @click="handleAlign('center')">
         <AlignCenter :size="20" />
       </ToolbarButton>
-      <ToolbarButton title="右对齐" :active="activeFormat.alignRight" @click="handleAlign('right')">
+      <ToolbarButton title="右对齐" :active="activeFormat.alignRight" :disabled="isCodeMode" @click="handleAlign('right')">
         <AlignRight :size="20" />
       </ToolbarButton>
-      <ToolbarButton title="两端对齐" :active="activeFormat.alignJustify" @click="handleAlign('justify')">
+      <ToolbarButton title="两端对齐" :active="activeFormat.alignJustify" :disabled="isCodeMode" @click="handleAlign('justify')">
         <AlignJustify :size="20" />
       </ToolbarButton>
     </ToolbarGroup>

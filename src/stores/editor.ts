@@ -24,6 +24,16 @@ const headingStylePresets: Record<number, Partial<FormatConfig>> = {
   },
 }
 
+const codeStylePreset: Partial<FormatConfig> = {
+  fontFamily: 'JetBrains Mono, Consolas, monospace',
+  fontSize: 14,
+  fontWeight: 'normal',
+  fontStyle: 'normal',
+  textDecoration: 'none',
+  color: '#e83e8c',
+  lineHeight: 1.6,
+}
+
 function createInitialDocument(): Document {
   const column1Id = generateId()
   const column2Id = generateId()
@@ -214,6 +224,9 @@ export const useEditorStore = defineStore('editor', () => {
         if (stylePreset) {
           paragraph.format = { ...paragraph.format, ...stylePreset }
         }
+      } else if (type === 'code') {
+        delete paragraph.level
+        paragraph.format = { ...defaultFormatConfig, ...codeStylePreset }
       } else {
         delete paragraph.level
         paragraph.format = { ...defaultFormatConfig }
