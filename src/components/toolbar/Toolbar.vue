@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import {
   Bold,
   Italic,
@@ -116,6 +116,15 @@ function getActiveParagraphType(): string | null {
 }
 
 const isCodeMode = computed(() => {
+  const active = getActiveParagraphInfo()
+  if (active) {
+    const paragraph = editorStore.getParagraphById(active.columnId, active.paragraphId)
+    return paragraph?.type === 'code'
+  }
+  if (activeColumnId.value && activeParagraphId.value) {
+    const paragraph = editorStore.getParagraphById(activeColumnId.value, activeParagraphId.value)
+    return paragraph?.type === 'code'
+  }
   return currentParagraphType.value === 'code'
 })
 
@@ -269,16 +278,61 @@ function clearAllFormatting() {
 }
 
 function handleCode() {
-  clearAllFormatting()
-  
-  const active = getActiveParagraphFromDOM()
-  if (active) {
-    handleParagraphType(active.columnId, active.paragraphId, 'code')
-  } else if (activeColumnId.value && activeParagraphId.value) {
-    handleParagraphType(activeColumnId.value, activeParagraphId.value, 'code')
-  } else {
-    window.document.execCommand('formatBlock', false, '<pre>')
+  if (updateFormatTimer) {
+    clearTimeout(updateFormatTimer)
+    updateFormatTimer = null
   }
+
+  const active = getActiveParagraphFromDOM() || (activeColumnId.value && activeParagraphId.value ? { columnId: activeColumnId.value, paragraphId: activeParagraphId.value } : null)
+  if (!active) return
+
+  const currentType = getActiveParagraphType()
+  const isCurrentlyCode = currentType === 'code'
+
+  if (isCurrentlyCode) {
+    const info = getActiveParagraphInfo()
+    let savedFormat = null
+    if (info) {
+      const paragraph = editorStore.getParagraphById(info.columnId, info.paragraphId)
+      if (paragraph?.metadata?.previousFormat) {
+        savedFormat = paragraph.metadata.previousFormat
+      }
+    }
+    handleParagraphType(active.columnId, active.paragraphId, 'text')
+    currentParagraphType.value = 'text'
+    if (savedFormat) {
+      activeFormat.value.bold = savedFormat.fontWeight === 'bold'
+      activeFormat.value.italic = savedFormat.fontStyle === 'italic'
+      activeFormat.value.underline = savedFormat.textDecoration?.includes('underline') || false
+      activeFormat.value.strikethrough = savedFormat.textDecoration?.includes('line-through') || false
+    } else {
+      resetFormatStates()
+    }
+  } else {
+    clearAllFormatting()
+    handleParagraphType(active.columnId, active.paragraphId, 'code')
+    currentParagraphType.value = 'code'
+    resetFormatStates()
+  }
+
+  nextTick(() => {
+    nextTick(() => {
+      const paragraphEl = window.document.querySelector(`[data-paragraph-id="${active.paragraphId}"]`) as HTMLElement
+      const contentEl = paragraphEl?.querySelector('[contenteditable="true"]') as HTMLElement
+      if (contentEl) {
+        const textContent = contentEl.innerText || ''
+        contentEl.innerHTML = textContent
+        editorStore.updateParagraphContent(active.columnId, active.paragraphId, textContent)
+        contentEl.focus()
+        const range = window.document.createRange()
+        const sel = window.getSelection()
+        range.selectNodeContents(contentEl)
+        range.collapse(false)
+        sel?.removeAllRanges()
+        sel?.addRange(range)
+      }
+    })
+  })
 }
 
 function handleAlign(align: 'left' | 'center' | 'right' | 'justify') {
@@ -537,7 +591,7 @@ function closeMenus() {
       <ToolbarButton title="引用" @click="handleQuote">
         <Quote :size="20" />
       </ToolbarButton>
-      <ToolbarButton title="代码块" @click="handleCode">
+      <ToolbarButton title="代码块" :active="isCodeMode" @click="handleCode">
         <Code :size="20" />
       </ToolbarButton>
     </ToolbarGroup>

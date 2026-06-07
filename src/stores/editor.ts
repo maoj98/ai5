@@ -213,6 +213,9 @@ export const useEditorStore = defineStore('editor', () => {
   ) {
     const paragraph = getParagraphById(columnId, paragraphId)
     if (paragraph) {
+      const previousType = paragraph.type
+      const previousFormat = { ...paragraph.format }
+
       paragraph.type = type
       if (type === 'heading') {
         const headingLevel = level || 1
@@ -223,18 +226,32 @@ export const useEditorStore = defineStore('editor', () => {
         }
       } else if (type === 'code') {
         delete paragraph.level
+        if (!paragraph.metadata) {
+          paragraph.metadata = {}
+        }
+        paragraph.metadata.previousType = previousType
+        paragraph.metadata.previousFormat = previousFormat
         paragraph.format = { ...defaultFormatConfig, ...codeStylePreset }
       } else {
         delete paragraph.level
-        const inlineFormat = {
-          fontWeight: paragraph.format.fontWeight,
-          fontStyle: paragraph.format.fontStyle,
-          textDecoration: paragraph.format.textDecoration,
-          color: paragraph.format.color,
-        }
-        paragraph.format = { ...defaultFormatConfig, ...inlineFormat }
-        if (paragraph.format.textDecoration === 'none') {
-          delete (paragraph.format as Partial<FormatConfig>).textDecoration
+        if (previousType === 'code' && paragraph.metadata?.previousFormat) {
+          paragraph.format = { ...paragraph.metadata.previousFormat }
+          delete paragraph.metadata.previousType
+          delete paragraph.metadata.previousFormat
+          if (Object.keys(paragraph.metadata).length === 0) {
+            delete paragraph.metadata
+          }
+        } else {
+          const inlineFormat = {
+            fontWeight: paragraph.format.fontWeight,
+            fontStyle: paragraph.format.fontStyle,
+            textDecoration: paragraph.format.textDecoration,
+            color: paragraph.format.color,
+          }
+          paragraph.format = { ...defaultFormatConfig, ...inlineFormat }
+          if (paragraph.format.textDecoration === 'none') {
+            delete (paragraph.format as Partial<FormatConfig>).textDecoration
+          }
         }
       }
       document.value.updatedAt = Date.now()

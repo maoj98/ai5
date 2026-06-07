@@ -193,6 +193,21 @@ watch(
   }
 )
 
+watch(
+  () => props.paragraph.type,
+  async () => {
+    if (!contentRef.value) return
+    
+    await nextTick()
+    const textContent = contentRef.value.innerText || ''
+    if (props.paragraph.type === 'list') {
+      contentRef.value.innerHTML = displayContent.value
+    } else {
+      contentRef.value.innerHTML = textContent
+    }
+  }
+)
+
 onMounted(() => {
   if (contentRef.value && props.paragraph.type === 'list') {
     contentRef.value.innerHTML = displayContent.value
@@ -224,6 +239,7 @@ defineExpose({
     
     <component
       :is="tagName"
+      :key="paragraph.type"
       ref="contentRef"
       class="paragraph__content"
       :style="contentStyle"
