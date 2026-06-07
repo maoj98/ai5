@@ -9,17 +9,14 @@ import { createEmptyParagraph } from '@/utils/richText'
 const headingStylePresets: Record<number, Partial<FormatConfig>> = {
   1: {
     fontSize: 32,
-    fontWeight: 'bold',
     lineHeight: 1.3,
   },
   2: {
     fontSize: 24,
-    fontWeight: 'bold',
     lineHeight: 1.4,
   },
   3: {
     fontSize: 20,
-    fontWeight: 'bold',
     lineHeight: 1.4,
   },
 }
@@ -229,7 +226,16 @@ export const useEditorStore = defineStore('editor', () => {
         paragraph.format = { ...defaultFormatConfig, ...codeStylePreset }
       } else {
         delete paragraph.level
-        paragraph.format = { ...defaultFormatConfig }
+        const inlineFormat = {
+          fontWeight: paragraph.format.fontWeight,
+          fontStyle: paragraph.format.fontStyle,
+          textDecoration: paragraph.format.textDecoration,
+          color: paragraph.format.color,
+        }
+        paragraph.format = { ...defaultFormatConfig, ...inlineFormat }
+        if (paragraph.format.textDecoration === 'none') {
+          delete (paragraph.format as Partial<FormatConfig>).textDecoration
+        }
       }
       document.value.updatedAt = Date.now()
     }

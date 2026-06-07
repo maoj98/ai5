@@ -3,7 +3,7 @@ export interface FormatConfig {
   fontSize: number
   fontWeight: 'normal' | 'bold'
   fontStyle: 'normal' | 'italic'
-  textDecoration: 'none' | 'underline' | 'line-through'
+  textDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through'
   color: string
   backgroundColor: string
   textAlign: 'left' | 'center' | 'right' | 'justify'

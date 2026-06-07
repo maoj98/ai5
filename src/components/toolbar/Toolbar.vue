@@ -36,6 +36,7 @@ import { useEditorStore } from '@/stores/editor'
 import { useFormatStore } from '@/stores/format'
 import { ImportExportService } from '@/services/ImportExportService'
 import type { Document } from '@/types/document'
+import type { FormatConfig } from '@/types/format'
 
 const { canUndo, canRedo, undo, redo } = useHistory()
 const { document, handleSetColumnCount, activeParagraphId, activeColumnId, handleParagraphType } = useEditor()
@@ -126,32 +127,84 @@ function handleRedo() {
   redo()
 }
 
+function getActiveParagraphInfo(): { columnId: string; paragraphId: string } | null {
+  return getParagraphFromSelection() || getActiveParagraphFromDOM()
+}
+
 function handleBold() {
   const type = getActiveParagraphType()
   if (!type || type === 'code') return
-  activeFormat.value.bold = !activeFormat.value.bold
+  const newValue = !activeFormat.value.bold
+  activeFormat.value.bold = newValue
   window.document.execCommand('bold')
+  
+  const info = getActiveParagraphInfo()
+  if (info) {
+    editorStore.updateParagraphFormat(info.columnId, info.paragraphId, {
+      fontWeight: newValue ? 'bold' : 'normal',
+    })
+  }
 }
 
 function handleItalic() {
   const type = getActiveParagraphType()
   if (!type || type === 'code') return
-  activeFormat.value.italic = !activeFormat.value.italic
+  const newValue = !activeFormat.value.italic
+  activeFormat.value.italic = newValue
   window.document.execCommand('italic')
+  
+  const info = getActiveParagraphInfo()
+  if (info) {
+    editorStore.updateParagraphFormat(info.columnId, info.paragraphId, {
+      fontStyle: newValue ? 'italic' : 'normal',
+    })
+  }
+}
+
+function updateTextDecoration(
+  columnId: string,
+  paragraphId: string,
+  underline: boolean | null,
+  strikethrough: boolean | null
+) {
+  const paragraph = editorStore.getParagraphById(columnId, paragraphId)
+  if (!paragraph) return
+
+  const currentUnderline = underline !== null ? underline : activeFormat.value.underline
+  const currentStrikethrough = strikethrough !== null ? strikethrough : activeFormat.value.strikethrough
+
+  const decorations: string[] = []
+  if (currentUnderline) decorations.push('underline')
+  if (currentStrikethrough) decorations.push('line-through')
+
+  const textDecoration = (decorations.length > 0 ? decorations.join(' ') : 'none') as FormatConfig['textDecoration']
+  editorStore.updateParagraphFormat(columnId, paragraphId, { textDecoration })
 }
 
 function handleUnderline() {
   const type = getActiveParagraphType()
   if (!type || type === 'code') return
-  activeFormat.value.underline = !activeFormat.value.underline
+  const newValue = !activeFormat.value.underline
+  activeFormat.value.underline = newValue
   window.document.execCommand('underline')
+  
+  const info = getActiveParagraphInfo()
+  if (info) {
+    updateTextDecoration(info.columnId, info.paragraphId, newValue, null)
+  }
 }
 
 function handleStrikethrough() {
   const type = getActiveParagraphType()
   if (!type || type === 'code') return
-  activeFormat.value.strikethrough = !activeFormat.value.strikethrough
+  const newValue = !activeFormat.value.strikethrough
+  activeFormat.value.strikethrough = newValue
   window.document.execCommand('strikeThrough')
+  
+  const info = getActiveParagraphInfo()
+  if (info) {
+    updateTextDecoration(info.columnId, info.paragraphId, null, newValue)
+  }
 }
 
 function handleHeading(level: 1 | 2 | 3) {
@@ -287,6 +340,20 @@ function updateActiveFormatFromSelection() {
     currentEl = currentEl.parentElement
   }
 
+  const info = getActiveParagraphInfo()
+  if (info) {
+    const paragraph = editorStore.getParagraphById(info.columnId, info.paragraphId)
+    if (paragraph?.format) {
+      const format = paragraph.format
+      bold = bold || format.fontWeight === 'bold'
+      italic = italic || format.fontStyle === 'italic'
+      if (format.textDecoration) {
+        underline = underline || format.textDecoration.includes('underline')
+        strikethrough = strikethrough || format.textDecoration.includes('line-through')
+      }
+    }
+  }
+
   if (!range.collapsed) {
     activeFormat.value.bold = bold || window.document.queryCommandState('bold')
     activeFormat.value.italic = italic || window.document.queryCommandState('italic')
@@ -302,14 +369,31 @@ function updateActiveFormatFromSelection() {
 
 let updateFormatTimer: number | null = null
 
+function isSelectionInEditor(): boolean {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) {
+    return false
+  }
+  const range = selection.getRangeAt(0)
+  const startContainer = range.startContainer
+  const el = startContainer.nodeType === Node.TEXT_NODE
+    ? startContainer.parentElement
+    : startContainer as HTMLElement
+  return !!el?.closest('[contenteditable="true"]')
+}
+
 function handleSelectionChange() {
   if (updateFormatTimer) {
     clearTimeout(updateFormatTimer)
   }
   updateFormatTimer = window.setTimeout(() => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0 || !isSelectionInEditor()) {
+      return
+    }
     currentParagraphType.value = getActiveParagraphType()
     updateActiveFormatFromSelection()
-  }, 10)
+  }, 120)
 }
 
 onMounted(() => {
